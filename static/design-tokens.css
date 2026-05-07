@@ -1,0 +1,168 @@
+/*
+ * Agent Router — Design Tokens
+ * Shared CSS custom properties for the dashboard.
+ *
+ * Theme: minimal dark terminal aesthetic.
+ *
+ * Usage:
+ *   <link rel="stylesheet" href="/api/static/design-tokens.css">
+ *   <html data-theme="game">   — activates game theme
+ *   <html data-theme="ops">    — activates ops theme
+ *   <html data-theme="proxy">  — activates proxy theme
+ *
+ * Each dashboard keeps its own theme-specific CSS but uses these
+ * semantic tokens for shared behavior (status colors, spacing, etc).
+ */
+
+/* ═══ SEMANTIC TOKENS (theme-independent) ═══ */
+:root {
+  /* Status colors — always consistent across all dashboards */
+  --status-ok: #3fb950;
+  --status-error: #f85149;
+  --status-warn: #d29922;
+  --status-info: #58a6ff;
+
+  /* Shared spacing scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  /* Border radius */
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Transitions */
+  --transition-fast: 0.1s ease;
+  --transition-normal: 0.2s ease;
+
+  /* Z-index layers */
+  --z-dropdown: 100;
+  --z-modal: 200;
+  --z-overlay: 300;
+  --z-toast: 400;
+
+  /* Platform nav (shared across all dashboards) */
+  --nav-height: 32px;
+  --nav-bg: #0d0d12;
+  --nav-text: #8b949e;
+  --nav-active: #58a6ff;
+  --nav-brand: #bc8cff;
+}
+
+/* ═══ GAME THEME (Pocket Studio, Admin Console) ═══ */
+:root[data-theme="game"] {
+  --bg-dark: #1a1a2e;
+  --bg-medium: #16213e;
+  --bg-panel: #1e2a45;
+  --bg-light: #0f3460;
+  --border: #2a2a4a;
+  --text: #e8e8e8;
+  --text-dim: #888;
+  --accent-primary: #00d9ff;
+  --accent-secondary: #9b5de5;
+  --accent-pink: #ff6b9d;
+  --accent-cyan: #00d9ff;
+  --accent-yellow: #ffd93d;
+  --accent-green: #6bcb77;
+  --accent-purple: #9b5de5;
+  --accent-orange: #ff9500;
+  --accent-red: #ff3b30;
+  --font-sm: 11px;
+  --font-md: 12px;
+  --font-lg: 14px;
+  --font-family: 'Press Start 2P', monospace;
+}
+
+/* ═══ OPS THEME (Backend Admin, Agent Chat) ═══ */
+:root[data-theme="ops"] {
+  --bg-dark: #0d1117;
+  --bg-medium: #161b22;
+  --bg-panel: #1c2129;
+  --bg-light: #30363d;
+  --border: #30363d;
+  --text: #e6edf3;
+  --text-dim: #8b949e;
+  --accent-primary: #58a6ff;
+  --accent-secondary: #bc8cff;
+  --accent-cyan: #39d2c0;
+  --accent-yellow: #d29922;
+  --accent-green: #3fb950;
+  --accent-purple: #bc8cff;
+  --accent-orange: #db6d28;
+  --accent-red: #f85149;
+  --font-sm: 11px;
+  --font-md: 13px;
+  --font-lg: 16px;
+  --font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+}
+
+/* ═══ PROXY THEME (Proxy Dashboard) ═══ */
+:root[data-theme="proxy"] {
+  --bg-dark: #0a0a0f;
+  --bg-medium: #12121a;
+  --bg-panel: #1a1a25;
+  --bg-light: #2a2a3a;
+  --border: #2a2a3a;
+  --text: #e0e0e8;
+  --text-dim: #6a6a7a;
+  --accent-primary: #22d3ee;
+  --accent-secondary: #a78bfa;
+  --accent-cyan: #22d3ee;
+  --accent-yellow: #fbbf24;
+  --accent-green: #4ade80;
+  --accent-purple: #a78bfa;
+  --accent-orange: #fb923c;
+  --accent-red: #f87171;
+  --font-sm: 11px;
+  --font-md: 13px;
+  --font-lg: 16px;
+  --font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+}
+
+/* ═══ PLATFORM NAV BAR (shared component) ═══ */
+.platform-nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  height: var(--nav-height);
+  background: var(--nav-bg);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.platform-nav .brand {
+  font-weight: 700;
+  color: var(--nav-brand);
+  font-size: 13px;
+  margin-right: 8px;
+}
+
+.platform-nav a {
+  color: var(--nav-text);
+  text-decoration: none;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.platform-nav a:hover {
+  color: #e6edf3;
+  background: rgba(255,255,255,0.06);
+}
+
+.platform-nav a.active {
+  color: var(--nav-active);
+  background: rgba(88,166,255,0.1);
+}
+
+.platform-nav .nav-sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255,255,255,0.1);
+}

@@ -1,0 +1,8 @@
+# ── Proxy (FastAPI) ────────────────────────────────────────────
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+httpx>=0.25.0
+bcrypt>=4.0.0
+
+# claude-api-server.py and codex-api-server.py use only stdlib.
+# minimax-bridge.py uses only stdlib.

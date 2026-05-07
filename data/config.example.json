@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy to config.json. Optional file-based provider keys (env vars take precedence). Set file mode 0600. Most users will set MINIMAX_API_KEY / ZAI_API_KEY / OPENAI_API_KEY env vars instead.",
+  "providers": {
+    "minimax": { "apiKey": "" },
+    "zai":     { "apiKey": "" },
+    "openai":  { "apiKey": "" },
+    "gemini":  { "apiKey": "" }
+  }
+}

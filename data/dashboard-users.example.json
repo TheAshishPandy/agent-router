@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy to dashboard-users.json. Hashes are bcrypt ($2b$). Generate with: python3 -c 'import bcrypt;print(bcrypt.hashpw(b\"YOUR_PASSWORD\", bcrypt.gensalt(12)).decode())'",
+  "users": {
+    "admin": {
+      "password_hash": "REPLACE_WITH_BCRYPT_HASH",
+      "role": "admin"
+    }
+  }
+}

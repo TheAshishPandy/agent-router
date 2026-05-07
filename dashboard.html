@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="proxy">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Router</title>
+<link rel="stylesheet" href="/api/static/design-tokens.css">
+<style>
+  :root {
+    --bg: #0a0a0f; --bg2: #12121a; --bg3: #1a1a25;
+    --text: #e0e0e8; --dim: #6a6a7a; --border: #2a2a3a;
+    --green: #4ade80; --red: #f87171; --yellow: #fbbf24;
+    --blue: #60a5fa; --purple: #a78bfa; --cyan: #22d3ee;
+    --orange: #fb923c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace; background: var(--bg); color: var(--text); font-size: 13px; }
+  .header { background: var(--bg2); border-bottom: 1px solid var(--border); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; }
+  .header h1 { font-size: 16px; font-weight: 600; }
+  .header h1 span { color: var(--purple); }
+  .header .status { display: flex; align-items: center; gap: 12px; font-size: 12px; color: var(--dim); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.on { background: var(--green); }
+  .dot.off { background: var(--red); }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 24px; padding-top: 0; }
+  .grid:first-of-type { padding-top: 24px; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .card h3 { font-size: 11px; text-transform: uppercase; color: var(--dim); letter-spacing: 1px; margin-bottom: 8px; }
+  .card .big { font-size: 28px; font-weight: 700; }
+  .card .sub { font-size: 11px; color: var(--dim); margin-top: 4px; }
+  .wide { grid-column: span 2; }
+  .full { grid-column: span 4; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--dim); letter-spacing: 0.5px; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  tr:hover { background: var(--bg3); }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .tag-ok { background: rgba(74,222,128,0.15); color: var(--green); }
+  .tag-err { background: rgba(248,113,113,0.15); color: var(--red); }
+  .tag-warn { background: rgba(251,191,36,0.15); color: var(--yellow); }
+  .tag-info { background: rgba(167,139,250,0.15); color: var(--purple); }
+  .tag-dim { background: rgba(107,114,128,0.15); color: var(--dim); }
+  .log-table { max-height: 300px; overflow-y: auto; }
+  .log-table::-webkit-scrollbar { width: 6px; }
+  .log-table::-webkit-scrollbar-track { background: var(--bg); }
+  .log-table::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text); padding: 6px 14px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 12px; }
+  .btn:hover { background: var(--border); }
+  .bar-container { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .bar-label { width: 100px; font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { flex: 1; height: 16px; background: var(--bg); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-value { font-size: 11px; color: var(--text); min-width: 50px; text-align: right; }
+  .hourly-chart { display: flex; align-items: flex-end; gap: 2px; height: 80px; }
+  .hourly-bar { flex: 1; background: var(--purple); border-radius: 2px 2px 0 0; min-width: 8px; position: relative; cursor: pointer; }
+  .hourly-bar:hover { opacity: 0.8; }
+  .hourly-bar .tt { display: none; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: var(--bg2); border: 1px solid var(--border); padding: 4px 8px; border-radius: 4px; font-size: 10px; white-space: nowrap; z-index: 10; }
+  .hourly-bar:hover .tt { display: block; }
+  .limit-card { background: var(--bg3); border-radius: 6px; padding: 12px; }
+  .limit-card h4 { font-size: 12px; margin-bottom: 8px; font-weight: 600; }
+  .limit-row { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+  .limit-label { font-size: 11px; color: var(--dim); width: 50px; }
+  .limit-meter { flex: 1; height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; }
+  .limit-fill { height: 100%; border-radius: 4px; }
+  .limit-fill.ok { background: var(--green); }
+  .limit-fill.warn { background: var(--yellow); }
+  .limit-fill.danger { background: var(--red); }
+  .limit-value { font-size: 11px; min-width: 90px; text-align: right; }
+  .error-row { background: rgba(248,113,113,0.05); }
+  @keyframes swarmPulse { 0%{box-shadow:0 0 4px var(--cyan);} 50%{box-shadow:0 0 12px var(--cyan);} 100%{box-shadow:0 0 4px var(--cyan);} }
+  .swarm-worker { width: 12px; height: 12px; border-radius: 50%; background: var(--bg3); border: 2px solid var(--border); display: inline-block; margin: 0 4px; transition: all 0.3s; }
+  .swarm-worker.active { background: var(--cyan); border-color: var(--cyan); animation: swarmPulse 1.5s infinite; }
+  .swarm-worker.done { background: var(--green); border-color: var(--green); }
+  .swarm-worker.fail { background: var(--red); border-color: var(--red); }
+  .swarm-stat { text-align: center; padding: 8px; }
+  .swarm-stat .val { font-size: 20px; font-weight: 700; color: var(--cyan); }
+  .swarm-stat .label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+  .swarm-table td, .swarm-table th { font-size: 11px; padding: 6px 10px; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+  .loading { animation: pulse 1.5s infinite; color: var(--dim); }
+  .flow-container { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .flow-container h3 { font-size: 11px; text-transform: uppercase; color: var(--dim); letter-spacing: 1px; padding: 16px 16px 0; }
+  #flowCanvas { width: 100%; height: 240px; display: block; }
+  @media (max-width: 1200px) { .grid { grid-template-columns: repeat(2, 1fr); } .full,.wide { grid-column: span 2; } .monitor-grid { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 768px) { .grid { grid-template-columns: 1fr; padding: 12px; gap: 12px; } .full,.wide { grid-column: span 1; } .monitor-grid { grid-template-columns: repeat(2, 1fr); } .header { flex-direction: column; gap: 12px; padding: 12px; } .header .status { flex-wrap: wrap; justify-content: center; } .login-box { width: 100%; padding: 24px; } table { font-size: 11px; } td,th { padding: 6px 8px; } .hourly-chart { height: 60px; } #flowCanvas { height: 180px; } .ep-row { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) { body { font-size: 12px; } .card .big { font-size: 22px; } .monitor-grid { grid-template-columns: 1fr; } }
+  .monitor-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; }
+  .mon-item { background: var(--bg3); border-radius: 6px; padding: 10px; text-align: center; }
+  .mon-item .label { font-size: 10px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .mon-item .val { font-size: 18px; font-weight: 700; margin-top: 4px; }
+  .mon-item .detail { font-size: 10px; color: var(--dim); margin-top: 2px; }
+  .login-overlay { position:fixed; inset:0; background:var(--bg); z-index:9999; display:flex; align-items:center; justify-content:center; }
+  .login-overlay.hidden { display:none; }
+  .login-box { background:var(--bg2); border:1px solid var(--border); border-radius:12px; padding:40px; width:360px; max-width:90vw; }
+  .login-box h1 { font-size:20px; margin-bottom:4px; }
+  .login-box .sub { color:var(--dim); font-size:12px; margin-bottom:28px; }
+  .login-box label { display:block; font-size:12px; color:var(--dim); margin-bottom:4px; margin-top:16px; }
+  .login-box input { width:100%; padding:10px 12px; background:var(--bg3); border:1px solid var(--border); border-radius:6px; color:var(--text); font-size:14px; font-family:inherit; outline:none; }
+  .login-box input:focus { border-color:var(--purple); }
+  .login-box button { width:100%; padding:10px; margin-top:24px; background:var(--purple); color:var(--bg); border:none; border-radius:6px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; }
+  .login-box button:hover { opacity:0.9; }
+  .login-box .error { color:var(--red); font-size:12px; margin-top:12px; text-align:center; display:none; }
+  .login-box .error.show { display:block; }
+  .dashboard-content { display:none; }
+  .dashboard-content.visible { display:block; }
+  /* Health banner */
+  .health-banner { display:flex; align-items:center; gap:20px; padding:8px 24px; background:var(--bg2); border-bottom:1px solid var(--border); font-size:12px; }
+  .health-item { display:flex; align-items:center; gap:6px; }
+  .health-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+  .health-dot.green { background:var(--green); box-shadow:0 0 6px var(--green); }
+  .health-dot.yellow { background:var(--yellow); box-shadow:0 0 6px var(--yellow); }
+  .health-dot.red { background:var(--red); box-shadow:0 0 6px var(--red); }
+  .health-dot.dim { background:var(--border); }
+  .health-label { color:var(--dim); }
+  .health-value { font-weight:600; }
+  .ep-row { display:grid; grid-template-columns:70px 1fr; gap:8px; padding:8px 0; border-bottom:1px solid var(--border); align-items:start; }
+  .ep-row:last-child { border-bottom:none; }
+  .ep-method { font-size:11px; font-weight:700; padding:2px 6px; border-radius:3px; text-align:center; }
+  .ep-method.get { background:rgba(74,222,128,0.15); color:var(--green); }
+  .ep-method.post { background:rgba(96,165,250,0.15); color:var(--blue); }
+  .ep-method.put { background:rgba(251,191,36,0.15); color:var(--yellow); }
+  .ep-method.delete { background:rgba(248,113,113,0.15); color:var(--red); }
+</style>
+</head>
+<body>
+<div class="login-overlay" id="loginOverlay"><div class="login-box"><h1>Agent Router</h1><div class="sub">Sign in to access the dashboard</div><form id="loginForm" onsubmit="event.preventDefault();doLogin();" autocomplete="on"><label>Username</label><input type="text" id="loginUser" name="username" autocomplete="username" autofocus><label>Password</label><input type="password" id="loginPass" name="password" autocomplete="current-password"><button type="submit">Sign In</button><div class="error" id="loginError"></div></form></div></div>
+<div class="dashboard-content" id="dashboardContent">
+<div class="health-banner" id="healthBanner"><div class="health-item"><span class="health-dot dim" id="hDotApi"></span><span class="health-label">API</span><span class="health-value" id="hValApi">--</span></div><div class="health-item"><span class="health-dot dim" id="hDotLimits"></span><span class="health-label">Limits</span><span class="health-value" id="hValLimits">--</span></div><div class="health-item"><span class="health-dot dim" id="hDotErrors"></span><span class="health-label">Errors</span><span class="health-value" id="hValErrors">--</span></div><div class="health-item"><span class="health-dot dim" id="hDotSwarm"></span><span class="health-label">Swarm</span><span class="health-value" id="hValSwarm">--</span></div><div style="margin-left:auto;color:var(--dim);font-size:11px;" id="hUptime">--</div></div>
+<div class="header"><h1><span>AGENT</span> ROUTER</h1><div class="status"><span id="sProxy"><span class="dot off"></span> Proxy</span><span id="sUpstream"><span class="dot off"></span> Claude API</span><span id="sTailscale"><span class="dot off"></span> Tailscale</span><span id="lastUpdate" style="margin-left:8px;">--</span><button class="btn" onclick="refresh()">REFRESH</button><select id="autoRefresh" class="btn" onchange="setAutoRefresh(this.value)"><option value="0">Manual</option><option value="5">5s</option><option value="15" selected>15s</option><option value="30">30s</option><option value="60">60s</option></select><a href="#" onclick="doLogout();return false;" class="btn" style="text-decoration:none;color:var(--dim);margin-left:8px;">LOGOUT</a></div></div>
+<div style="padding:24px 24px 0;"><div class="flow-container"><h3>Traffic Flow</h3><svg id="flowCanvas" viewBox="0 0 900 240" preserveAspectRatio="xMidYMid meet"><defs><radialGradient id="gNode" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="var(--green)" stop-opacity="1"/><stop offset="100%" stop-color="var(--green)" stop-opacity="0"/></radialGradient><radialGradient id="gPurple" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="var(--purple)" stop-opacity="1"/><stop offset="100%" stop-color="var(--purple)" stop-opacity="0"/></radialGradient></defs><g stroke="var(--border)" stroke-width="0.5" opacity="0.3"><line x1="0" y1="110" x2="900" y2="110"/><line x1="300" y1="0" x2="300" y2="220"/><line x1="600" y1="0" x2="600" y2="220"/></g><text x="150" y="20" fill="var(--dim)" font-size="10" text-anchor="middle" font-family="inherit">CLIENTS</text><text x="450" y="20" fill="var(--dim)" font-size="10" text-anchor="middle" font-family="inherit">PROXY</text><text x="750" y="20" fill="var(--dim)" font-size="10" text-anchor="middle" font-family="inherit">UPSTREAM</text><g><circle cx="450" cy="110" r="18" fill="url(#gPurple)" opacity="0.3"/><circle cx="450" cy="110" r="10" fill="var(--purple)" opacity="0.6"/><circle cx="450" cy="110" r="5" fill="var(--purple)"/></g><text x="450" y="148" fill="var(--purple)" font-size="11" text-anchor="middle" font-family="inherit" font-weight="600">Proxy :8001</text><g><circle cx="750" cy="110" r="16" fill="url(#gNode)" opacity="0.3"/><circle cx="750" cy="110" r="8" fill="var(--green)" opacity="0.6"/><circle cx="750" cy="110" r="4" fill="var(--green)"/></g><text x="750" y="148" fill="var(--green)" font-size="11" text-anchor="middle" font-family="inherit" font-weight="600">Claude API :8000</text><text x="750" y="162" fill="var(--dim)" font-size="9" text-anchor="middle" font-family="inherit">claude -p CLI</text><line x1="465" y1="110" x2="735" y2="110" stroke="var(--border)" stroke-width="1" stroke-dasharray="4,4" opacity="0.4"/><g><circle cx="750" cy="200" r="14" fill="var(--cyan)" opacity="0.1"/><circle cx="742" cy="196" r="4" fill="var(--cyan)" opacity="0.7"/><circle cx="750" cy="204" r="4" fill="var(--cyan)" opacity="0.7"/><circle cx="758" cy="196" r="4" fill="var(--cyan)" opacity="0.7"/></g><text x="750" y="218" fill="var(--cyan)" font-size="9" text-anchor="middle" font-family="inherit" font-weight="600">MiniMax Swarm 3x</text><line x1="465" y1="118" x2="735" y2="198" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="4,4" opacity="0.3"/><g id="flowNodes"></g></svg><div style="display:flex;gap:16px;padding:8px 16px 12px;font-size:11px;color:var(--dim);flex-wrap:wrap;"><span><span class="dot on" style="width:6px;height:6px;vertical-align:middle"></span> Online</span><span><span class="dot off" style="width:6px;height:6px;vertical-align:middle"></span> Offline</span><span style="color:var(--purple)">&#9679; Proxy</span><span style="color:var(--green)">&#9679; Upstream</span><span style="color:var(--cyan)">&#9679; Client node</span><span id="flowStats" style="margin-left:auto;"></span></div></div></div>
+<div class="grid" style="padding-top:24px;"><div class="card full"><h3>Service Health</h3><div class="monitor-grid" id="monitorPanel"><div class="mon-item"><div class="label">Proxy</div><div class="val" id="mProxy">--</div><div class="detail" id="mProxyD"></div></div><div class="mon-item"><div class="label">Upstream</div><div class="val" id="mUpstream">--</div><div class="detail" id="mUpstreamD"></div></div><div class="mon-item"><div class="label">Tailscale</div><div class="val" id="mTailscale">--</div><div class="detail" id="mTailscaleD"></div></div><div class="mon-item"><div class="label">API Keys</div><div class="val" id="mKeys">--</div><div class="detail" id="mKeysD"></div></div><div class="mon-item"><div class="label">Active</div><div class="val" id="mActive">--</div><div class="detail" id="mActiveD"></div></div><div class="mon-item"><div class="label">Claude CLI</div><div class="val" id="mClaude">--</div><div class="detail" id="mClaudeD"></div></div></div></div></div>
+<div class="grid"><div class="card full" id="swarmPanel"><h3 style="color:var(--cyan)">MiniMax Swarm <button class="btn" onclick="resetSwarm()" style="font-size:10px;padding:2px 8px;margin-left:12px;vertical-align:middle;">RESET</button></h3><div style="display:flex;align-items:center;gap:24px;margin:12px 0;"><div style="display:flex;align-items:center;gap:6px;"><span style="color:var(--dim);font-size:11px;">Workers:</span><span class="swarm-worker" id="sw0"></span><span class="swarm-worker" id="sw1"></span><span class="swarm-worker" id="sw2"></span><span style="font-size:11px;color:var(--dim);margin-left:4px;">→</span><span style="font-size:11px;color:var(--cyan);margin-left:4px;font-weight:600;" id="swarmMeeting">Meeting</span></div><div style="margin-left:auto;display:flex;gap:16px;align-items:center;"><span id="swarmActiveTag" style="display:none;" class="tag tag-info">0 active</span><span id="swarmTotalTag" class="tag tag-dim">0 completed</span></div></div><div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:8px 0;"><div class="swarm-stat"><div class="val" id="swTotal">0</div><div class="label">Swarms</div></div><div class="swarm-stat"><div class="val" id="swWorkers">0</div><div class="label">Workers Run</div></div><div class="swarm-stat"><div class="val" id="swSucceeded" style="color:var(--green)">0</div><div class="label">Succeeded</div></div><div class="swarm-stat"><div class="val" id="swAvgWorker">--</div><div class="label">Avg Worker</div></div><div class="swarm-stat"><div class="val" id="swAvgCons">--</div><div class="label">Avg Consolidation</div></div><div class="swarm-stat"><div class="val" id="swFailRate" style="color:var(--green)">0%</div><div class="label">Fail Rate</div></div></div><div class="log-table swarm-table" style="max-height:180px;margin-top:8px;"><table><thead><tr><th>Time</th><th>Workers</th><th>Worker Times</th><th>Consolidation</th><th>Total</th><th>Model</th></tr></thead><tbody id="swarmBody"><tr><td colspan="6" style="color:var(--dim)">No swarm activity</td></tr></tbody></table></div></div></div>
+<div class="grid"><div class="card"><h3>Total Requests</h3><div class="big" id="totalReqs">--</div><div class="sub" id="totalReqsSub"></div></div><div class="card"><h3>Success Rate</h3><div class="big" id="successRate">--</div><div class="sub" id="successRateSub"></div></div><div class="card"><h3>Total Tokens</h3><div class="big" id="totalTokens">--</div><div class="sub" id="totalTokensSub"></div></div><div class="card"><h3>Uptime</h3><div class="big" id="uptime">--</div><div class="sub" id="uptimeSub"></div></div></div>
+<div class="grid"><div class="card full"><h3>API Usage Limits</h3><div id="limitsSection" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;"><div class="loading" style="grid-column:span 3">Loading...</div></div></div></div>
+<div class="grid"><div class="card wide"><h3>By Source</h3><div id="sourceBars"></div></div><div class="card wide"><h3>By Model</h3><div id="modelBars"></div></div></div>
+<div class="grid"><div class="card full"><h3>Hourly Activity</h3><div class="hourly-chart" id="hourlyChart"></div></div></div>
+<div class="grid"><div class="card full"><h3>Recent Requests</h3><div class="log-table"><table><thead><tr><th>Time</th><th>Endpoint</th><th>Model</th><th>Source</th><th>Tokens</th><th>Time</th><th>Status</th></tr></thead><tbody id="recentBody"></tbody></table></div></div></div>
+<div class="grid"><div class="card full"><h3>Recent Errors</h3><div class="log-table"><table><thead><tr><th>Time</th><th>Endpoint</th><th>Model</th><th>Source</th><th>Type</th><th>Detail</th></tr></thead><tbody id="errorsBody"></tbody></table></div></div></div>
+<div class="grid"><div class="card wide"><h3>Active API Keys</h3><div id="keysSection" class="loading">Loading...</div></div><div class="card wide"><h3>Server Info</h3><div id="serverInfo" class="loading">Loading...</div></div></div>
+<div class="grid"><div class="card full" id="setupCard" style="display:none"><h3>API Connection</h3><div style="line-height:2.2"><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="color:var(--dim);min-width:70px">Endpoint</span><code id="setupEndpoint" style="background:var(--bg3);padding:4px 10px;border-radius:4px;flex:1;font-size:12px">—</code><button class="btn" onclick="copyText('setupEndpoint')">COPY</button></div><div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span style="color:var(--dim);min-width:70px">API Key</span><code id="setupKey" style="background:var(--bg3);padding:4px 10px;border-radius:4px;flex:1;font-size:12px">—</code><button class="btn" onclick="copyText('setupKey')">COPY</button></div></div></div>
+<div class="card full" id="ccSetupCard" style="display:none"><h3>VPS Setup — Claude Code</h3><div style="line-height:1.8"><div style="color:var(--dim);font-size:11px;margin-bottom:6px">Add to <code>~/.bashrc</code> or <code>~/.zshrc</code>:</div><pre id="setupShell" style="background:var(--bg3);padding:12px 14px;border-radius:6px;font-size:12px;line-height:1.6;white-space:pre-wrap;margin:0;border:1px solid var(--border)">—</pre><div style="margin-top:6px;display:flex;align-items:center;gap:8px"><button class="btn" onclick="copyText('setupShell')">COPY</button><span style="color:var(--dim);font-size:11px">Then run: <code>source ~/.bashrc</code></span></div><details style="margin-top:16px"><summary style="color:var(--dim);font-size:11px;cursor:pointer">Alternative: write to ~/.claude/settings.json</summary><pre id="setupQuick" style="background:var(--bg3);padding:12px 14px;border-radius:6px;font-size:12px;line-height:1.6;white-space:pre-wrap;margin:8px 0 0 0">—</pre><div style="margin-top:6px"><button class="btn" onclick="copyText('setupQuick')">COPY</button></div></details><details style="margin-top:12px"><summary style="color:var(--dim);font-size:11px;cursor:pointer">Test command</summary><pre id="setupTest" style="background:var(--bg3);padding:12px 14px;border-radius:6px;font-size:12px;line-height:1.6;white-space:pre-wrap;margin:8px 0 0 0">—</pre><div style="margin-top:6px"><button class="btn" onclick="copyText('setupTest')">COPY</button></div></details></div></div></div>
+<div class="grid"><div class="card full"><h3>API Reference</h3><div id="helpSection" class="loading">Loading...</div></div></div>
+</div>
+<script src="/api/static/api.js"></script>
+<script>
+var BACKEND=window.location.origin,_refreshTimer=null,_tabVisible=true,_fontSize=parseFloat(localStorage.getItem('dashFontSize'))||13;
+document.body.style.fontSize=_fontSize+'px';
+document.addEventListener('visibilitychange',function(){_tabVisible=!document.hidden;if(_tabVisible&&_refreshTimer)refresh();});
+document.addEventListener('keydown',function(e){if((e.ctrlKey||e.metaKey)&&(e.key==='='||e.key==='+')){e.preventDefault();_fontSize=Math.min(24,_fontSize+1);document.body.style.fontSize=_fontSize+'px';localStorage.setItem('dashFontSize',_fontSize);}else if((e.ctrlKey||e.metaKey)&&e.key==='-'){e.preventDefault();_fontSize=Math.max(9,_fontSize-1);document.body.style.fontSize=_fontSize+'px';localStorage.setItem('dashFontSize',_fontSize);}else if((e.ctrlKey||e.metaKey)&&e.key==='0'){e.preventDefault();_fontSize=13;document.body.style.fontSize=_fontSize+'px';localStorage.setItem('dashFontSize',_fontSize);}});
+function apiFetch(u,o){o=o||{};o.headers=o.headers||{};o.credentials='same-origin';return fetch(u,o);}
+var _escEl=document.createElement('span');
+function esc(s){_escEl.textContent=s;return _escEl.innerHTML;}
+function fmt(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':String(n);}
+function fmtTime(s){return s<1?(s*1000).toFixed(0)+'ms':s.toFixed(1)+'s';}
+function localTime(iso){try{return new Date(iso).toLocaleTimeString(undefined,{hour12:false});}catch(e){return iso;}}
+function djb2(s){var h=5381;for(var i=0;i<s.length;i++)h=((h<<5)+h+s.charCodeAt(i))|0;return h;}
+var _hashes={};
+function changed(k,d){var h=djb2(JSON.stringify(d));if(_hashes[k]===h)return false;_hashes[k]=h;return true;}
+function sourceTag(s){var c=s==='remote'||s==='proxy'?'tag-info':s==='local'||s==='direct'?'tag-ok':s==='dashboard'||s==='system'?'tag-warn':'tag-dim';return'<span class="tag '+c+'">'+esc(s)+'</span>';}
+function statusTag(s){if(s==='success')return'<span class="tag tag-ok">OK</span>';if(s==='timeout')return'<span class="tag tag-warn">TIMEOUT</span>';return'<span class="tag tag-err">'+esc(s)+'</span>';}
+var MC={sonnet:'--purple',opus:'--orange',haiku:'--green',minimax:'--cyan',claude:'--blue'};
+function getModelColor(m){return'var('+(MC[m]||'--dim')+')';}
+function getSourceColor(s){return s==='remote'?'var(--purple)':s==='local'?'var(--green)':s==='dashboard'?'var(--cyan)':s==='system'?'var(--yellow)':'var(--dim)';}
+function renderFlow(geo,act){var nodes=geo.by_country||{},pings=geo.pings||[],active=(act&&act.active)||{},ac=Object.keys(active).length,nn=Object.keys(nodes).filter(function(n){return n!=='local';});if(!changed('flow',{n:nn,a:ac}))return;var p=[],sp=nn.length>0?Math.min(40,160/nn.length):40,sy=110-(nn.length-1)*sp/2;nn.forEach(function(name,i){var y=sy+i*sp,x=120,c=(nodes[name]||{}).count||0,r=Math.min(8,3+Math.log2(c+1));p.push('<circle cx="'+x+'" cy="'+y+'" r="'+(r+6)+'" fill="var(--cyan)" opacity="0.1"/>','<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="var(--cyan)" opacity="0.7"/>','<text x="'+(x-40)+'" y="'+(y+4)+'" fill="var(--dim)" font-size="9" text-anchor="end" font-family="inherit">'+esc(name)+'</text>','<text x="'+(x+r+8)+'" y="'+(y+3)+'" fill="var(--dim)" font-size="9" font-family="inherit">'+c+' reqs</text>','<line x1="'+(x+r+2)+'" y1="'+y+'" x2="435" y2="110" stroke="var(--cyan)" stroke-width="1" stroke-dasharray="4,4" opacity="0.2"/>');});if(ac>0)p.push('<circle cx="600" cy="110" r="4" fill="var(--yellow)" opacity="0.8"/>');document.getElementById('flowNodes').innerHTML=p.join('');document.getElementById('flowStats').textContent=nn.length+' nodes  |  '+pings.length+' pings  |  '+ac+' in-flight';}
+function renderMonitor(d){if(!d)return;var p=d.proxy||{},up=p.status==='UP'||p.status==='healthy';document.getElementById('mProxy').innerHTML='<span style="color:var(--'+(up?'green':'red')+')">'+esc(up?'UP':'DOWN')+'</span>';document.getElementById('mProxyD').textContent=p.uptime?fmt(p.uptime)+'s uptime':'';var ts=d.tailscale||{},tsUp=ts.status==='ONLINE';document.getElementById('mTailscale').innerHTML='<span style="color:var(--'+(tsUp?'green':'red')+')">'+esc(tsUp?'ONLINE':'OFF')+'</span>';document.getElementById('mTailscaleD').textContent=(ts.peers||0)+' peers';document.getElementById('mKeys').textContent=(d.keys||{}).count||0;document.getElementById('mKeysD').textContent=(d.keys||{}).mtime?'mod '+(d.keys.mtime||'').slice(11,19):'';document.getElementById('mActive').textContent=d.active_requests||0;document.getElementById('mActiveD').textContent=(d.recent_errors||0)+' errors';var ok=p.claude_cli==='ok';document.getElementById('mUpstream').innerHTML='<span style="color:var(--'+(ok?'green':'red')+')">'+esc(ok?'UP':'DOWN')+'</span>';document.getElementById('mUpstreamD').textContent='err '+(p.error_rate||0)+'%';}
+function renderBars(id,data,cf){if(!changed('b_'+id,data))return;var el=document.getElementById(id);if(!data||!Object.keys(data).length){el.innerHTML='<span style="color:var(--dim)">No data</span>';return;}var mx=Math.max.apply(null,Object.values(data).map(function(v){return v.count||0;})),h='';Object.keys(data).sort(function(a,b){return(data[b].count||0)-(data[a].count||0);}).forEach(function(k){var v=data[k],pct=mx>0?((v.count||0)/mx*100):0;h+='<div class="bar-container"><span class="bar-label" title="'+esc(k)+'">'+esc(k)+'</span><div class="bar-track"><div class="bar-fill" style="width:'+pct+'%;background:'+cf(k)+'"></div></div><span class="bar-value">'+(v.count||0)+' / '+fmt((v.input_tokens||0)+(v.output_tokens||0))+'t</span></div>';});el.innerHTML=h;}
+function renderHourly(data){if(!changed('hourly',data))return;var el=document.getElementById('hourlyChart');if(!data||!Object.keys(data).length){el.innerHTML='';return;}var mx=Math.max.apply(null,Object.values(data).map(function(v){return v.count||0;})),h='';Object.keys(data).sort().forEach(function(k){var v=data[k],pct=mx>0?((v.count||0)/mx*100):0,lbl;try{var d=new Date(k.replace(' ','T')+':00:00Z');lbl=d.toLocaleString(undefined,{month:'short',day:'numeric',hour:'2-digit',hour12:false});}catch(e){lbl=k;}h+='<div class="hourly-bar" style="height:'+Math.max(pct,2)+'%"><div class="tt">'+esc(lbl)+' — '+(v.count||0)+' reqs, '+fmt((v.input_tokens||0)+(v.output_tokens||0))+'t</div></div>';});el.innerHTML=h;}
+function renderRecent(list){if(!changed('recent',list))return;var el=document.getElementById('recentBody');if(!list||!list.length){el.innerHTML='<tr><td colspan="7" style="color:var(--dim)">No requests</td></tr>';return;}el.innerHTML=list.slice().reverse().slice(0,50).map(function(r){var c=r.status!=='success'?' class="error-row"':'';return'<tr'+c+'><td>'+localTime(r.ts)+'</td><td>'+esc(r.endpoint)+'</td><td style="color:'+getModelColor(r.model)+'">'+esc(r.model)+'</td><td>'+sourceTag(r.source)+'</td><td>'+fmt(r.input_tokens||0)+'/'+fmt(r.output_tokens||0)+'</td><td>'+fmtTime(r.elapsed||0)+'</td><td>'+statusTag(r.status)+'</td></tr>';}).join('');}
+function renderErrors(list){if(!changed('errors',list))return;var el=document.getElementById('errorsBody');if(!list||!list.length){el.innerHTML='<tr><td colspan="6" style="color:var(--dim)">No errors</td></tr>';return;}el.innerHTML=list.slice(-20).reverse().map(function(e){return'<tr class="error-row"><td>'+localTime(e.ts)+'</td><td>'+esc(e.endpoint)+'</td><td>'+esc(e.model)+'</td><td>'+sourceTag(e.source)+'</td><td><span class="tag tag-err">'+esc(e.error_type)+'</span></td><td title="'+esc(e.error_detail||'')+'">'+esc((e.error_detail||'').slice(0,60))+'</td></tr>';}).join('');}
+function fmtDuration(sec){if(sec<=0)return 'now';if(sec<60)return sec+'s';if(sec<3600)return Math.floor(sec/60)+'m '+sec%60+'s';var h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60);return h+'h '+m+'m';}
+function fmtResetDay(sec){var d=new Date(Date.now()+sec*1000);var days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];return days[d.getDay()]+' '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'});}
+function renderLimits(data){if(!changed('limits',data))return;var el=document.getElementById('limitsSection');if(!data||!data.limits){el.innerHTML='<span style="color:var(--dim)">No data</span>';return;}var resets=data.resets||{},prov=data.providers||{};var allKeys=Object.keys(data.limits);var maxDailyReqs=Math.max.apply(null,allKeys.map(function(k){return data.limits[k].daily_requests||0;}))||1;var h='';allKeys.forEach(function(k){var v=data.limits[k],rpm=v.rpm||{},daily=v.daily_tokens||{},wk=v.weekly||{};var rp=rpm.pct||0,rc=rp>=90?'danger':rp>=60?'warn':'ok';var isClaude=k.indexOf('claude')>=0,isMM=k.indexOf('minimax')>=0;var drPct=Math.min(Math.round((v.daily_requests||0)/maxDailyReqs*100),100);var drC=drPct>=80?'warn':'ok';h+='<div class="limit-card"><h4>'+esc(v.label||k)+'</h4>';h+='<div class="limit-row"><span class="limit-label">RPM</span><div class="limit-meter"><div class="limit-fill '+rc+'" style="width:'+Math.min(rp,100)+'%"></div></div><span class="limit-value">'+(rpm.used||0)+'/'+(rpm.limit||0)+'</span></div>';h+='<div class="limit-row"><span class="limit-label">Today</span><div class="limit-meter"><div class="limit-fill '+drC+'" style="width:'+drPct+'%"></div></div><span class="limit-value">'+(v.daily_requests||0)+' reqs</span></div>';if(daily.limit){var dp=daily.pct||0,dc=dp>=90?'danger':dp>=60?'warn':'ok';h+='<div class="limit-row"><span class="limit-label">Tokens</span><div class="limit-meter"><div class="limit-fill '+dc+'" style="width:'+Math.min(dp,100)+'%"></div></div><span class="limit-value">'+fmt(daily.used||0)+'/'+fmt(daily.limit)+'</span></div>';}else if(daily.used){h+='<div class="limit-row"><span class="limit-label">Tokens</span><div class="limit-meter"><div class="limit-fill ok" style="width:35%"></div></div><span class="limit-value">'+fmt(daily.used||0)+' today</span></div>';}if(daily.input||daily.output){h+='<div style="font-size:10px;color:var(--dim);margin:2px 0 0 58px">'+fmt(daily.input||0)+' in / '+fmt(daily.output||0)+' out</div>';}if(wk.tokens||wk.requests){h+='<div class="limit-row" style="margin-top:4px"><span class="limit-label">Weekly</span><div class="limit-meter"><div class="limit-fill" style="width:'+Math.min(Math.round(wk.tokens/Math.max(daily.limit||wk.tokens*2,1)*100),100)+'%;background:var(--purple);opacity:0.7"></div></div><span class="limit-value">'+fmt(wk.tokens)+' tok / '+wk.requests+' reqs</span></div>';if(wk.input||wk.output){h+='<div style="font-size:10px;color:var(--dim);margin:2px 0 0 58px">'+fmt(wk.input||0)+' in / '+fmt(wk.output||0)+' out</div>';}}h+='<div style="margin-top:8px;padding-top:6px;border-top:1px solid var(--border);font-size:10px;color:var(--dim);line-height:1.6">';h+='Resets: RPM '+fmtDuration(resets.rpm_resets_in_sec||0)+' · Daily '+fmtDuration(resets.daily_resets_in_sec||0);if(resets.weekly_resets_in_sec!=null&&isClaude){h+='<br>Weekly resets '+fmtResetDay(resets.weekly_resets_in_sec)+' ('+fmtDuration(resets.weekly_resets_in_sec)+')';}if(isMM&&prov.minimax){var mm=prov.minimax;h+='<br>Provider: '+mm.provider_rpm+' RPM / '+fmt(mm.provider_tpm)+' TPM';if(mm.remaining_requests!=null)h+=' · <span style="color:var(--green)">'+mm.remaining_requests+' left</span>';}if(isClaude&&prov.claude){h+='<br>'+prov.claude.plan+' plan · '+prov.claude.window;}h+='</div></div>';});el.innerHTML=h;}
+function renderSwarm(d){if(!d)return;document.getElementById('swTotal').textContent=fmt(d.total_swarms||0);document.getElementById('swWorkers').textContent=fmt(d.total_workers_run||0);document.getElementById('swSucceeded').textContent=fmt(d.workers_succeeded||0);document.getElementById('swAvgWorker').textContent=d.avg_worker_ms?d.avg_worker_ms+'ms':'--';document.getElementById('swAvgCons').textContent=d.avg_consolidation_ms?d.avg_consolidation_ms+'ms':'--';var fr=d.recent_fail_rate!=null?d.recent_fail_rate:(d.total_workers_run>0?((d.worker_failures||0)/(d.total_workers_run)*100).toFixed(1):0);document.getElementById('swFailRate').textContent=fr+'%';document.getElementById('swFailRate').style.color=fr>10?'var(--red)':fr>5?'var(--yellow)':'var(--green)';var active=d.active_swarms||0;var atag=document.getElementById('swarmActiveTag');if(active>0){atag.style.display='';atag.textContent=active+' active';for(var i=0;i<3;i++)document.getElementById('sw'+i).className='swarm-worker active';document.getElementById('swarmMeeting').style.color='var(--cyan)';}else{atag.style.display='none';for(var i=0;i<3;i++)document.getElementById('sw'+i).className='swarm-worker done';document.getElementById('swarmMeeting').style.color='var(--dim)';}document.getElementById('swarmTotalTag').textContent=(d.total_swarms||0)+' completed';var recent=d.recent||[];var el=document.getElementById('swarmBody');if(!recent.length){el.innerHTML='<tr><td colspan="6" style="color:var(--dim)">No swarm activity</td></tr>';return;}el.innerHTML=recent.slice().reverse().slice(0,10).map(function(r){var wt=(r.worker_ms||[]).map(function(m){return m+'ms';}).join(' / ');return'<tr><td>'+localTime(r.ts)+'</td><td><span style="color:var(--green)">'+r.successful+'</span>/'+r.workers+'</td><td style="font-size:10px">'+esc(wt)+'</td><td>'+(r.consolidation_ms||0)+'ms</td><td style="color:var(--cyan)">'+r.total_ms+'ms</td><td>'+esc(r.model||'')+'</td></tr>';}).join('');}
+function renderUpstream(aD){var u=aD.upstream||{},st=u.status||'unknown',busy=st!=='idle';document.getElementById('mClaude').innerHTML='<span style="color:var(--'+(busy?'yellow':'green')+')">'+esc(busy?'BUSY':'IDLE')+'</span>';if(u.task)document.getElementById('mClaudeD').textContent=u.task;else if(u.lastActivity){var ago=Math.round((Date.now()/1000-u.lastActivity));document.getElementById('mClaudeD').textContent=ago<60?ago+'s ago':Math.round(ago/60)+'m ago';}else document.getElementById('mClaudeD').textContent='';var ac=aD.count||0,q=aD.queue||{};document.getElementById('mActive').textContent=ac+(q.depth>0?' +'+q.depth:'');document.getElementById('mActiveD').textContent=q.busy?'Queue busy':'Queue idle';}
+async function resetSwarm(){try{var r=await apiFetch(BACKEND+'/api/swarm/reset',{method:'POST'});if(r.ok){refresh();}}catch(e){console.error('swarm reset',e);}}
+function copyText(id){var t=document.getElementById(id).textContent;navigator.clipboard.writeText(t).then(function(){var b=document.getElementById(id).parentElement.querySelector('.btn');if(b){b.textContent='COPIED';setTimeout(function(){b.textContent='COPY';},1500);}});}
+async function loadKeys(){try{var r=await apiFetch(BACKEND+'/api/keys');if(!r.ok)return;var d=await r.json(),keys=d.keys||{},el=document.getElementById('keysSection');if(!Object.keys(keys).length){el.innerHTML='<span style="color:var(--dim)">No keys</span>';return;}var h='<table><thead><tr><th>ID</th><th>Label</th><th>Key</th><th>Created</th></tr></thead><tbody>';Object.keys(keys).forEach(function(k){var v=keys[k];h+='<tr><td>'+esc(k)+'</td><td>'+esc(v.label)+'</td><td><code id="key_'+k+'">'+esc(v.key)+'</code> <button class="btn" onclick="copyText(\'key_'+k+'\')">COPY</button></td><td>'+esc(v.created)+'</td></tr>';});el.innerHTML=h+'</tbody></table>';}catch(e){}}
+async function loadSetup(){try{var r=await apiFetch(BACKEND+'/api/setup');if(!r.ok)return;var d=await r.json();if(!d.endpoint)return;document.getElementById('setupCard').style.display='';document.getElementById('setupEndpoint').textContent=d.base_url||d.endpoint;document.getElementById('setupKey').textContent=d.key||'—';if(d.key&&d.base_url){document.getElementById('ccSetupCard').style.display='';document.getElementById('setupShell').textContent=d.shell_setup||'—';document.getElementById('setupQuick').textContent=d.settings_setup||'—';if(d.test_cmd)document.getElementById('setupTest').textContent=d.test_cmd;}}catch(e){}}
+async function loadHelp(){var el=document.getElementById('helpSection');try{var r=await fetch(BACKEND+'/api/help');if(!r.ok){el.innerHTML='<span style="color:var(--dim)">Unavailable</span>';return;}var d=await r.json();el.innerHTML=(d.endpoints||[]).map(function(ep){var m=(ep.method||'GET').toLowerCase(),auth=ep.auth?'<span class="tag tag-warn" style="font-size:10px;margin-left:6px">AUTH</span>':'<span class="tag tag-dim" style="font-size:10px;margin-left:6px">PUBLIC</span>',body=ep.body?'<div style="font-size:10px;color:var(--dim);font-family:monospace;background:var(--bg);padding:4px 8px;border-radius:3px;margin-top:4px;overflow-x:auto;white-space:nowrap">'+esc(ep.body)+'</div>':'';return'<div class="ep-row"><span class="ep-method '+m+'">'+m.toUpperCase()+'</span><div><span style="font-size:12px">'+esc(ep.path)+'</span>'+auth+'<div style="font-size:11px;color:var(--dim);margin-top:2px">'+esc(ep.description)+'</div>'+body+'</div></div>';}).join('');}catch(e){el.innerHTML='<span style="color:var(--dim)">Error loading</span>';}}
+async function refresh(){if(!_tabVisible)return;try{var r=await apiFetch(BACKEND+'/api/dashboard/summary');if(!r||!r.ok){setDot('sProxy',false);setDot('sUpstream',false);setDot('sTailscale',false);return;}var D=await r.json();var tsD=D.network||{};setDot('sTailscale',tsD.online);var mD=D.monitor||null;if(mD){var pu=mD.proxy&&(mD.proxy.status==='UP'||mD.proxy.status==='healthy');setDot('sProxy',pu);setDot('sUpstream',mD.proxy&&mD.proxy.claude_cli==='ok');renderMonitor(mD);}else{setDot('sProxy',false);setDot('sUpstream',false);}document.getElementById('lastUpdate').textContent=new Date().toLocaleTimeString(undefined,{hour12:false});var s=D.stats||{};if(s&&!s._error){var rq=s.requests||{},tk=s.tokens||{};document.getElementById('totalReqs').textContent=fmt(rq.total||0);document.getElementById('totalReqsSub').textContent=(rq.success||0)+' ok / '+(rq.errors||0)+' err / '+(rq.timeouts||0)+' timeout';var rate=rq.total>0?((rq.success||0)/(rq.total)*100).toFixed(1):'--';document.getElementById('successRate').textContent=rate+'%';document.getElementById('successRate').style.color=rate>=95?'var(--green)':rate>=85?'var(--yellow)':'var(--red)';document.getElementById('successRateSub').textContent=(rq.errors||0)+' errors, '+(rq.timeouts||0)+' timeouts';document.getElementById('totalTokens').textContent=fmt(tk.total||0);document.getElementById('totalTokensSub').textContent=fmt(tk.total_input||0)+' in / '+fmt(tk.total_output||0)+' out';document.getElementById('uptime').textContent=s.uptime_human||'--';renderBars('sourceBars',s.by_source,getSourceColor);renderBars('modelBars',s.by_model,getModelColor);renderHourly(s.hourly);renderRecent(s.recent);renderErrors(s.recent_errors);document.getElementById('serverInfo').innerHTML='<div style="line-height:2">Transport: <span style="color:var(--purple)">Tailscale (WireGuard)</span><br>'+(tsD.hostname?'Host: <span style="color:var(--cyan)">'+esc(tsD.hostname)+'</span><br>':'')+(tsD.ip?'IP: '+esc(tsD.ip)+'<br>':'')+'Peers: '+(tsD.peers||0)+'<br>Uptime: '+(s.uptime_human||'--')+'</div>';}var gD=D.geo||{by_country:{},pings:[]};var aD=D.active||{active:{},upstream:{}};renderFlow(gD,aD);renderUpstream(aD);var lD=D.limits||null;if(lD&&!lD._error)renderLimits(lD);var swD=D.swarm||null;if(swD&&!swD._error)renderSwarm(swD);updateHealthBanner(s&&!s._error?s:null,lD,swD,mD);}catch(e){console.error('refresh error',e);setDot('sProxy',false);setDot('sUpstream',false);setDot('sTailscale',false);}}
+function updateHealthBanner(stats,limitsData,swarmData,monitorData){
+try{
+  // API Health
+  var hApi=document.getElementById('hDotApi'),hApiV=document.getElementById('hValApi');
+  if(monitorData&&monitorData.proxy){
+    var up=monitorData.proxy.status==='UP'||monitorData.proxy.status==='healthy';
+    var cliOk=monitorData.proxy.claude_cli==='ok';
+    hApi.className='health-dot '+(up&&cliOk?'green':up?'yellow':'red');
+    hApiV.textContent=up&&cliOk?'Healthy':up?'Degraded':'Down';
+    hApiV.style.color=up&&cliOk?'var(--green)':up?'var(--yellow)':'var(--red)';
+  }
+  // Limits
+  var hLim=document.getElementById('hDotLimits'),hLimV=document.getElementById('hValLimits');
+  if(limitsData&&limitsData.limits){
+    var maxPct=0;
+    for(var k in limitsData.limits){var p=limitsData.limits[k];if(p.rpm&&p.rpm.pct>maxPct)maxPct=p.rpm.pct;if(p.daily_tokens&&p.daily_tokens.pct>maxPct)maxPct=p.daily_tokens.pct;}
+    hLim.className='health-dot '+(maxPct<70?'green':maxPct<90?'yellow':'red');
+    hLimV.textContent=maxPct<70?'OK':Math.round(maxPct)+'% used';
+    hLimV.style.color=maxPct<70?'var(--green)':maxPct<90?'var(--yellow)':'var(--red)';
+  }
+  // Errors
+  var hErr=document.getElementById('hDotErrors'),hErrV=document.getElementById('hValErrors');
+  if(stats){
+    var rq=stats.requests||{},errRate=rq.total>0?((rq.errors||0)/rq.total*100):0;
+    hErr.className='health-dot '+(errRate<2?'green':errRate<10?'yellow':'red');
+    hErrV.textContent=errRate<0.1?'None':errRate.toFixed(1)+'%';
+    hErrV.style.color=errRate<2?'var(--green)':errRate<10?'var(--yellow)':'var(--red)';
+  }
+  // Swarm
+  var hSw=document.getElementById('hDotSwarm'),hSwV=document.getElementById('hValSwarm');
+  if(swarmData){
+    var failRate=swarmData.recent_fail_rate||0;
+    hSw.className='health-dot '+(swarmData.active_swarms>0?'green':failRate>20?'red':'green');
+    hSwV.textContent=swarmData.active_swarms>0?swarmData.active_swarms+' active':swarmData.total_swarms+' done';
+    hSwV.style.color=failRate>20?'var(--red)':'var(--cyan)';
+  }
+  // Uptime
+  if(stats&&stats.uptime_human)document.getElementById('hUptime').textContent='Up '+stats.uptime_human;
+}catch(e){console.error('health banner',e);}
+}
+function setDot(id,on){var el=document.getElementById(id);if(!el)return;var d=el.querySelector('.dot');if(d){var c='dot '+(on?'on':'off');if(d.className!==c)d.className=c;}}
+function setAutoRefresh(sec){if(_refreshTimer)clearTimeout(_refreshTimer);_refreshTimer=null;if(sec>0){(async function t(){await refresh();_refreshTimer=setTimeout(t,sec*1000);})();}}
+async function doLogin(){await new Promise(function(r){setTimeout(r,50)});var u=document.getElementById('loginUser').value.trim(),p=document.getElementById('loginPass').value,e=document.getElementById('loginError');e.className='error';e.textContent='';if(!u||!p){e.textContent='Enter username and password';e.className='error show';return;}try{var r=await fetch(BACKEND+'/api/auth',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});if(r.ok){showDashboard();}else{e.textContent='Invalid username or password';e.className='error show';}}catch(x){e.textContent='Cannot reach server';e.className='error show';}}
+function doLogout(){fetch(BACKEND+'/api/logout',{credentials:'same-origin'});document.getElementById('dashboardContent').className='dashboard-content';document.getElementById('loginOverlay').className='login-overlay';if(_refreshTimer)clearTimeout(_refreshTimer);_refreshTimer=null;}
+function showDashboard(){document.getElementById('loginOverlay').className='login-overlay hidden';document.getElementById('dashboardContent').className='dashboard-content visible';refresh();loadKeys();loadSetup();loadHelp();setAutoRefresh(15);}
+(async function(){
+var _isLocal=location.hostname==='localhost'||location.hostname==='127.0.0.1';
+if(_isLocal){showDashboard();return;}
+try{var r=await apiFetch(BACKEND+'/api/stats');if(r.ok){showDashboard();return;}}catch(e){}
+document.getElementById('loginOverlay').className='login-overlay';
+})();
+</script>
+</body>
+</html>

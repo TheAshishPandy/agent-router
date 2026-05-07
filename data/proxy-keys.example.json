@@ -1,0 +1,4 @@
+{
+  "_comment": "Copy to proxy-keys.json. Keys are managed via /api/keys (POST creates, DELETE revokes). The format is pcx-<id>-<hex>. Set file mode 0600.",
+  "keys": {}
+}

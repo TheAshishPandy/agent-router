@@ -1,0 +1,12 @@
+{
+  "_comment": "Copy to tailscale.json. The endpoint is announced via /api/setup. Allowed origins are added to CORS. Nodes appear on the dashboard map.",
+  "endpoint": "http://your-tailnet-host:8001",
+  "allowed_origins": [],
+  "nodes": {
+    "your-tailnet-host": {
+      "lat": 0,
+      "lng": 0,
+      "name": "Your Server"
+    }
+  }
+}

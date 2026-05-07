@@ -1,0 +1,44 @@
+# ── Secrets / runtime data ─────────────────────────────────────────
+# All real data files are gitignored; only *.example.json + README are committed.
+data/*.json
+!data/*.example.json
+
+# Makefile artifacts
+.pids/
+
+# Logs (committed examples are fine, real logs aren't)
+*.log
+*.log.gz
+logs/
+
+# Sessions, analytics, runtime state
+sessions/
+analytics/
+
+# ── Python ─────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+.venv/
+venv/
+env/
+.tox/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── OS / editor ────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
+
+# ── Local config ───────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
