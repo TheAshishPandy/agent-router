@@ -8,6 +8,9 @@ static assets, and runs background tasks (session cleanup, upstream health).
 import json
 import os
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -139,7 +142,12 @@ async def graceful_shutdown():
     logger.info("[SHUTDOWN] closing HTTP clients")
     try:
         from proxy import _upstream_client, _minimax_client, _zai_client, _codex_client
-        for c in (_upstream_client, _minimax_client, _zai_client, _codex_client):
+        try:
+            from provider_router import _clients as _pr_clients
+            _extra = list(_pr_clients.values())
+        except Exception:
+            _extra = []
+        for c in (_upstream_client, _minimax_client, _zai_client, _codex_client, *_extra):
             try:
                 await c.aclose()
             except Exception:

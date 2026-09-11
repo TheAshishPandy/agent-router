@@ -1,7 +1,6 @@
 {
   "_version": 1,
-  "_comment": "Agent Router platform config — single source of truth for all services",
-
+  "_comment": "Agent Router platform config",
   "services": {
     "claude-api": {
       "label": "agent-router.claude-api",
@@ -25,15 +24,16 @@
       "plist": "agent-router.proxy.plist"
     }
   },
-
   "upstream": {
     "claude_api": "http://127.0.0.1:8000",
     "codex_api": "http://127.0.0.1:8006",
     "proxy": "http://localhost:8001/api",
     "minimax": "https://api.minimaxi.chat/v1",
-    "zai": "https://api.z.ai/api/anthropic"
+    "zai": "https://api.z.ai/api/anthropic",
+    "ollama": "http://127.0.0.1:11434/v1",
+    "huggingface": "https://router.huggingface.co/v1",
+    "openrouter": "https://openrouter.ai/api/v1"
   },
-
   "timeouts": {
     "connect": 10.0,
     "health_check": 5.0,
@@ -42,23 +42,26 @@
     "codex": 240.0,
     "minimax": 90.0,
     "zai": 180.0,
+    "ollama": 180.0,
+    "huggingface": 180.0,
+    "openrouter": 180.0,
     "internal_api": 10.0,
     "swarm_worker": 120.0,
     "consolidation": 60.0,
     "queue_wait": 300
   },
-
   "swarm": {
     "workers": 3,
     "enabled": true
   },
-
   "cascade": {
-    "_comment": "Ordered fallback chain on rate-limit/error. Each provider is tried in order.",
     "enabled": true,
-    "chain": ["claude", "zai", "minimax"]
+    "chain": [
+      "huggingface",
+      "openrouter",
+      "ollama"
+    ]
   },
-
   "rate_limits": {
     "claude": {
       "requests_per_min": 30,
@@ -81,43 +84,69 @@
       "label": "Z.AI (GLM-4.6)"
     }
   },
-
   "providers": {
-    "_comment": "Provider-specific defaults. Override per-request via headers.",
     "claude": {
       "default_model": "claude-sonnet-4-6",
-      "models": ["claude-opus-4-6", "claude-sonnet-4-6"]
+      "models": [
+        "claude-opus-4-6",
+        "claude-sonnet-4-6"
+      ]
     },
     "codex": {
       "default_model": "gpt-5",
-      "models": ["gpt-5", "gpt-5-mini", "gpt-5-codex"],
-      "_comment": "Set CODEX_MODE=cli to use ChatGPT subscription via codex CLI, or CODEX_MODE=api with OPENAI_API_KEY"
+      "models": [
+        "gpt-5",
+        "gpt-5-mini",
+        "gpt-5-codex"
+      ]
     },
     "minimax": {
       "default_model": "MiniMax-M2.5",
-      "models": ["MiniMax-M2.5"]
+      "models": [
+        "MiniMax-M2.5"
+      ]
     },
     "zai": {
       "default_model": "glm-4.6",
-      "models": ["glm-4.6", "glm-4.5-air", "glm-4.6-think"],
-      "_comment": "Z.AI speaks Anthropic /v1/messages natively — drop-in cascade target for Claude"
+      "models": [
+        "glm-4.6",
+        "glm-4.5-air",
+        "glm-4.6-think"
+      ]
+    },
+    "ollama": {
+      "default_model": "qwen2.5-coder:1.5b",
+      "models": [
+        "qwen2.5-coder:1.5b"
+      ],
+      "base_url": "http://127.0.0.1:11434/v1"
+    },
+    "huggingface": {
+      "default_model": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "models": [
+        "deepseek-ai/DeepSeek-V4.1-Flash"
+      ],
+      "base_url": "https://router.huggingface.co/v1"
+    },
+    "openrouter": {
+      "default_model": "openrouter/free",
+      "models": [
+        "openrouter/free"
+      ],
+      "base_url": "https://openrouter.ai/api/v1"
     }
   },
-
   "paths": {
-    "_comment": "All paths support ~ expansion. Override via env: AGENT_ROUTER_DATA_DIR, AGENT_ROUTER_LOGS_DIR.",
     "launchagents_dir": "~/Library/LaunchAgents",
     "data_dir": "./data",
     "logs_dir": "~/.agent-router/logs",
     "analytics_dir": "~/.agent-router/analytics"
   },
-
   "swarm_monitor": {
     "check_interval": 60,
     "restart_cooldown": 300,
     "health_timeout": 10
   },
-
   "log_rotation": {
     "retention_days": 7,
     "max_size_mb": 10,

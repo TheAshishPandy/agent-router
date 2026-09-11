@@ -29,9 +29,23 @@ from fastapi import APIRouter, Request, HTTPException, Response
 from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse, RedirectResponse
 
 from platform_config import cfg, upstream, timeout as cfg_timeout, generate_request_id
+from provider_router import cascade_request, cascade_stream
 
 logger = logging.getLogger("api-gateway")
 
+
+_router_start_time = time.time()
+
+def _humanize_uptime(seconds: float) -> str:
+    seconds = int(seconds)
+    d, s = divmod(seconds, 86400)
+    h, s = divmod(s, 3600)
+    m, s = divmod(s, 60)
+    if d:
+        return f"{d}d {h}h {m}m"
+    if h:
+        return f"{h}h {m}m"
+    return f"{m}m {s}s"
 
 def _atomic_write_json(path: str, data, indent: int = 2, mode: int = 0):
     """Write JSON atomically: write to temp file then rename. Prevents corruption on crash."""
@@ -123,6 +137,7 @@ async def _upstream_health_loop():
 _request_log_lock = threading.Lock()
 _active_requests: dict = {}   # req_id -> {endpoint, started, key_id, model, ...}
 _error_log: deque = deque(maxlen=100)  # last 100 errors with full detail
+_recent_requests: deque = deque(maxlen=50)  # last 50 completed requests
 _request_counter = 0
 USERS_FILE = os.path.join(_DATA_DIR, "dashboard-users.json")
 
@@ -794,17 +809,27 @@ def _start_request(endpoint: str, key_id: str = "", model: str = "", extra: dict
 
 
 def _end_request(req_id: str, status: str = "ok", output_tokens: int = 0):
-    """Mark a request as completed."""
     with _request_log_lock:
         info = _active_requests.pop(req_id, None)
     if info:
         elapsed = time.time() - info["started"]
+        # NEW: record in the recent-requests buffer
+        with _request_log_lock:
+            _recent_requests.append({
+                "ts": info.get("started_at", ""),
+                "endpoint": info.get("endpoint", ""),
+                "model": info.get("model", ""),
+                "source": info.get("key_id", "local"),
+                "input_tokens": info.get("input_tokens_est", 0),
+                "output_tokens": output_tokens,
+                "elapsed": round(elapsed, 2),
+                "status": status,
+            })
         if elapsed > 30:
             logger.warning(
                 f"SLOW {info['endpoint']} model={info.get('model','')} "
                 f"elapsed={elapsed:.0f}s key={info.get('key_id','')}"
             )
-
 
 def _fail_request(req_id: str, error_type: str, detail: str, status_code: int = 0):
     """Record a failed request with full detail."""
@@ -823,12 +848,20 @@ def _fail_request(req_id: str, error_type: str, detail: str, status_code: int = 
     }
     with _request_log_lock:
         _error_log.append(entry)
+        _recent_requests.append({
+            "ts": entry["ts"],
+            "endpoint": entry["endpoint"],
+            "model": entry["model"],
+            "source": entry["key_id"] or "local",
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "elapsed": entry["elapsed"],
+            "status": "error",
+        })
     logger.error(
         f"FAIL {entry['endpoint']} type={error_type} status={status_code} "
         f"elapsed={elapsed:.0f}s detail={detail[:200]}"
-    )
-
-
+    )  
 # ═══ API Help / Docs ═══
 
 API_ENDPOINTS = [
@@ -901,36 +934,30 @@ async def api_help():
 
 # ═══ Model Endpoints ═══
 
+
 @router.post("/v1/messages")
 async def handle_messages(request: Request):
-    """Anthropic-compatible /v1/messages (supports SSE streaming)."""
+    """Anthropic-compatible /v1/messages.
+
+    Routing (free-first): Ollama → Hugging Face → OpenRouter.
+    Claude remains reachable via /opus, /sonnet, /prompt.
+    """
     key_id = _authenticate(request)
     _record_source(request, "/v1/messages")
     body = await request.body()
-    headers = _clean_headers(request, key_id=key_id)
 
     try:
         payload = json.loads(body)
     except Exception:
-        payload = {}
-    model = payload.get("model", "")
-    is_stream = payload.get("stream", False)
+        return _error_response(400, "invalid_json",
+                               "Request body is not valid JSON", request)
 
-    # Enforce rate limits — cascade to MiniMax if Claude is rate limited
+    model = payload.get("model", "")
+    is_stream = bool(payload.get("stream", False))
+
     limit_err = _check_rate_limit("/v1/messages", model)
     if limit_err:
-        req_id = _start_request("/v1/messages", key_id=key_id, model=model, extra={
-            "stream": is_stream, "cascade_reason": "proxy_rate_limit",
-        })
-        cascade_resp = await _cascade_to_minimax(
-            payload, req_id=req_id, is_stream=is_stream,
-            request=request,
-        )
-        if cascade_resp:
-            return cascade_resp
-        raise HTTPException(status_code=429, detail=limit_err)
-
-    _track_usage("/v1/messages", model)
+        return _error_response(429, "rate_limited", limit_err, request)
 
     space_id = request.headers.get("x-space-id", "")
     user_id = request.headers.get("x-user-id", "")
@@ -939,46 +966,42 @@ async def handle_messages(request: Request):
         "input_tokens_est": len(body) // 4,
         "space_id": space_id,
         "user_id": user_id,
+        "routing": "free_cascade",
     })
 
-    # Queue for upstream access
-    try:
-        position = await _acquire_queue_slot(request, req_id)
-        if position > 0:
-            logger.info(f"DEQUEUED {req_id} after position={position}")
-    except HTTPException:
-        _fail_request(req_id, "queue_timeout", "Timed out waiting in queue", 503)
-        raise
+    _track_usage("/v1/messages", model)
 
     try:
         if is_stream:
-            return await _stream_forward("/v1/messages", body, headers,
-                                         req_id=req_id, request=request,
-                                         on_complete=_release_queue_slot,
-                                         cascade_payload=payload)
-        else:
-            resp = await _forward_with_retry("/v1/messages", body, headers, req_id=req_id)
-            # Cascade on upstream 429 (claude-api-server didn't handle it)
-            if resp.status_code == 429:
-                cascade_resp = await _cascade_to_minimax(payload, req_id=req_id)
-                if cascade_resp:
-                    return cascade_resp
+            resp = await cascade_stream(payload, req_id=req_id)
+            if resp is None:
+                _fail_request(req_id, "cascade_exhausted",
+                              "All free providers unavailable (streaming)", 503)
+                return _error_response(
+                    503, "cascade_exhausted",
+                    "All configured free providers are unavailable.", request,
+                )
+            _end_request(req_id, status="ok_stream")
             return resp
+
+        result = await cascade_request(payload, req_id=req_id)
+        if result is None:
+            _fail_request(req_id, "cascade_exhausted",
+                          "All free providers unavailable", 503)
+            return _error_response(
+                503, "cascade_exhausted",
+                "All configured free providers are unavailable.", request,
+            )
+        _end_request(req_id, status="ok")
+        return result
+
     except HTTPException as e:
-        # Cascade on upstream 429
-        if e.status_code == 429:
-            cascade_resp = await _cascade_to_minimax(payload, req_id=req_id)
-            if cascade_resp:
-                return cascade_resp
+        _fail_request(req_id, "http_exception", str(e.detail), e.status_code)
         raise
     except Exception as e:
-        _fail_request(req_id, type(e).__name__, str(e))
-        raise
-    finally:
-        # Release exactly once for non-streaming (streaming releases via on_complete callback)
-        if not is_stream:
-            _release_queue_slot()
-
+        _fail_request(req_id, type(e).__name__, str(e), 502)
+        return _error_response(502, "provider_cascade_failed",
+                               "Provider cascade failed", request)
 
 @router.post("/opus")
 async def handle_opus(request: Request):
@@ -2149,12 +2172,12 @@ async def proxy_geo(request: Request):
 
 @router.get("/health")
 async def proxy_health(request: Request):
-    """Forward health check (no auth required)."""
-    try:
-        resp = await _upstream_client.get("/health")
-        return JSONResponse(content=resp.json(), status_code=resp.status_code)
-    except Exception:
-        return JSONResponse(content={"status": "error"}, status_code=503)
+    """Local health check — does not depend on the Claude upstream."""
+    return JSONResponse(content={
+        "status": "ok",
+        "service": "agent-router",
+        "upstream_claude": "offline" if _upstream_health["claude_api"]["status"] == "down" else "unknown",
+    })
 
 
 @router.get("/network-status")
@@ -2294,15 +2317,48 @@ def _sanitize_stats(data: dict) -> dict:
 
 @router.get("/stats")
 async def proxy_stats(request: Request):
-    """Forward stats (sanitized)."""
+    """Local stats — built from the router's own usage tracking."""
     if not _is_trusted(request):
         _authenticate(request)
-    try:
-        resp = await _upstream_client.get("/stats")
-        data = resp.json()
-        return JSONResponse(content=_sanitize_stats(data), status_code=resp.status_code)
-    except Exception:
-        raise HTTPException(status_code=503, detail="Service unavailable")
+
+    now = datetime.now(timezone.utc)
+    day_key = now.strftime("%Y-%m-%d")
+
+    with _usage_lock:
+        today = _usage_data["daily"].get(day_key, {})
+        current_minute = _usage_data["windows"].get(now.strftime("%Y-%m-%d %H:%M"), {})
+
+    total_requests = sum(d.get("requests", 0) for d in today.values())
+    total_input = sum(d.get("input_tokens", 0) for d in today.values())
+    total_output = sum(d.get("output_tokens", 0) for d in today.values())
+
+    by_model = {}
+    for bucket, vals in today.items():
+        by_model[bucket] = {
+            "count": vals.get("requests", 0),
+            "input_tokens": vals.get("input_tokens", 0),
+            "output_tokens": vals.get("output_tokens", 0),
+        }
+
+    with _request_log_lock:
+        recent = list(_recent_requests)[-25:]
+        recent_errors = list(_error_log)[-10:]
+
+    return JSONResponse(content={
+        "uptime_seconds": int(time.time() - _router_start_time),
+        "uptime_human": _humanize_uptime(time.time() - _router_start_time),
+        "requests": {"today": total_requests},
+        "tokens": {"today": total_input + total_output,
+                   "input": total_input, "output": total_output},
+        "hourly": {},
+        "by_model": by_model,
+        "by_source": {},
+        "by_agent": {},
+        "by_space": {},
+        "by_user": {},
+        "recent": recent,
+        "recent_errors": recent_errors,
+    })
 
 
 # ═══ Usage Limits & Rate Tracking ═══
@@ -3373,7 +3429,16 @@ async def dashboard_summary(request: Request):
 
     results = await asyncio.gather(*[fetch_section(k, p) for k, p in endpoints.items()])
     summary = {k: v for k, v in results}
-
+    
+    # Inject live values the dashboard JS expects
+    keys = _load_keys()
+    with _request_log_lock:
+        active_count = len(_active_requests)
+    summary["meta"] = {
+        "key_count": len(keys),
+        "active_count": active_count,
+        "queue_depth": _queue_depth,
+    }
     return JSONResponse(content=summary)
 
 
