@@ -6,5 +6,10 @@
   "auto_commit": true,
   "auto_push": false,
   "branch_prefix": "agent/auto",
-  "stop_on_blocked": false
+  "stop_on_blocked": false,
+  "agy_path": "",
+  "agy_model": "gemini-3.8-flash-medium",
+  "agy_effort": "",
+  "agy_print_timeout": "10m",
+  "agy_hard_timeout_seconds": 900
 }
