@@ -6,14 +6,14 @@ def run_git(repo: Path, *args: str) -> str:
     p = subprocess.run(["git", *args], cwd=repo, text=True, capture_output=True)
     if p.returncode: raise GitError(p.stderr.strip() or p.stdout.strip() or "git command failed")
     return p.stdout.strip()
-def is_repo(path: Path) -> bool: return (path / ".git").exists()
 def status(repo: Path) -> str: return run_git(repo, "status", "--short")
 def branch(repo: Path) -> str: return run_git(repo, "branch", "--show-current")
 def ensure_work_branch(repo: Path, prefix: str) -> str:
     current = branch(repo)
     if current and current not in {"main", "master"}: return current
     name = f"{prefix}/{repo.name}".replace(" ", "-")
-    run_git(repo, "switch", "-c", name)
+    if run_git(repo, "branch", "--list", name).strip(): run_git(repo, "switch", name)
+    else: run_git(repo, "switch", "-c", name)
     return name
 def commit(repo: Path, message: str) -> str:
     if not status(repo): return run_git(repo, "rev-parse", "HEAD")
