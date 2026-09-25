@@ -29,7 +29,7 @@ from fastapi import APIRouter, Request, HTTPException, Response
 from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse, RedirectResponse
 
 from platform_config import cfg, upstream, timeout as cfg_timeout, generate_request_id
-from provider_router import cascade_request, cascade_stream
+from provider_router import cascade_request, cascade_stream, routing_snapshot
 
 logger = logging.getLogger("api-gateway")
 
@@ -2524,6 +2524,19 @@ def _track_tokens(endpoint: str, model_hint: str, input_tokens: int, output_toke
 
 
 _load_usage()
+
+
+@router.get("/router-state")
+async def router_state(request: Request):
+    """Live provider/model routing state for the operations dashboard."""
+    if not _is_trusted(request):
+        _authenticate(request)
+    return JSONResponse(content={
+        "routing": routing_snapshot(),
+        "cascade": cfg.get("cascade", {}),
+        "providers": cfg.get("providers", {}),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    })
 
 
 @router.get("/limits")
