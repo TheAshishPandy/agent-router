@@ -42,6 +42,32 @@ _PROVIDER_MODELS = {
 _connect_timeout = cfg.get("timeouts", {}).get("connect", 10.0)
 _timeouts = cfg.get("timeouts", {})
 
+
+# Live routing telemetry for the operations dashboard.
+_ROUTING_STATE = {
+    "active": {},
+    "recent": [],
+    "provider_stats": {},
+}
+_ROUTING_LOCK = __import__("threading").Lock()
+
+def _routing_event(req_id: str, provider: str, model: str, status: str, error: str = ""):
+    now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(timespec="seconds")
+    with _ROUTING_LOCK:
+        if status in ("started", "attempt"):
+            _ROUTING_STATE["active"][req_id] = {"provider": provider, "model": model, "status": "running", "started_at": now}
+        else:
+            _ROUTING_STATE["active"].pop(req_id, None)
+            stats = _ROUTING_STATE["provider_stats"].setdefault(provider, {"requests": 0, "success": 0, "failed": 0})
+            stats["requests"] += 1
+            stats["success" if status == "success" else "failed"] += 1
+            _ROUTING_STATE["recent"].append({"ts": now, "request_id": req_id, "provider": provider, "model": model, "status": status, "error": error[:240]})
+            _ROUTING_STATE["recent"] = _ROUTING_STATE["recent"][-100:]
+
+def routing_snapshot() -> dict:
+    with _ROUTING_LOCK:
+        return json.loads(json.dumps(_ROUTING_STATE))
+
 _clients = {
     "ollama": httpx.AsyncClient(timeout=httpx.Timeout(_timeouts.get("ollama", 180.0), connect=_connect_timeout)),
     "huggingface": httpx.AsyncClient(timeout=httpx.Timeout(_timeouts.get("huggingface", 180.0), connect=_connect_timeout)),
