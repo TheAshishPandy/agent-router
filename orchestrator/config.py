@@ -21,6 +21,10 @@ class OrchestratorConfig:
     agy_effort: str = ""
     agy_print_timeout: str = "10m"
     agy_hard_timeout_seconds: int = 900
+    agent_router_url: str = "http://127.0.0.1:8001/api"
+    agent_router_model: str = "claude-sonnet-4-6"
+    agent_router_max_turns: int = 30
+    agent_router_timeout_seconds: int = 300
 
     @classmethod
     def from_file(cls, path: str | Path) -> "OrchestratorConfig":
@@ -68,4 +72,12 @@ class OrchestratorConfig:
             agy_hard_timeout_seconds=int(
                 data.get("agy_hard_timeout_seconds", 900)
             ),
+            agent_router_url=str(
+                data.get("agent_router_url", os.environ.get("AGENT_ROUTER_URL", "http://127.0.0.1:8001/api"))
+            ),
+            agent_router_model=str(
+                data.get("agent_router_model", os.environ.get("AGENT_ROUTER_MODEL", "claude-sonnet-4-6"))
+            ),
+            agent_router_max_turns=int(data.get("agent_router_max_turns", 30)),
+            agent_router_timeout_seconds=int(data.get("agent_router_timeout_seconds", 300)),
         )
