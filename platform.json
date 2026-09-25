@@ -58,8 +58,8 @@
     "enabled": true,
     "chain": [
       "huggingface",
-      "openrouter",
-      "ollama"
+      "ollama",
+      "openrouter"
     ]
   },
   "rate_limits": {
@@ -122,9 +122,10 @@
       "base_url": "http://127.0.0.1:11434/v1"
     },
     "huggingface": {
-      "default_model": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "default_model": "openai/gpt-oss-120b:fastest",
       "models": [
-        "deepseek-ai/DeepSeek-V4.1-Flash"
+        "openai/gpt-oss-120b:fastest",
+        "deepseek-ai/DeepSeek-V3.2"
       ],
       "base_url": "https://router.huggingface.co/v1"
     },
