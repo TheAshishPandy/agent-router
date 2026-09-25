@@ -272,17 +272,26 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Sequential autonomous repository supervisor")
     parser.add_argument("--config", default="orchestrator-config.json")
     parser.add_argument("--once", action="store_true")
+    parser.add_argument("--repo", help="Process only this repository path")
     args = parser.parse_args()
 
     cfg = OrchestratorConfig.from_file(args.config)
     state = load(cfg.state_file)
 
+    if args.repo:
+        selected = Path(args.repo).expanduser().resolve()
+        if not (selected / ".git").exists():
+            parser.error(f"Not a Git repository: {selected}")
+        repositories = [selected]
+    else:
+        repositories = None
+
     while True:
         progress = False
-        repositories = discover_repositories(cfg.workspace)
-        log(f"Discovered {len(repositories)} repositories under {cfg.workspace}", cfg)
+        current_repositories = repositories if repositories is not None else discover_repositories(cfg.workspace)
+        log(f"Discovered {len(current_repositories)} repositories under {cfg.workspace}", cfg)
 
-        for repo in repositories:
+        for repo in current_repositories:
             if state.get("repositories", {}).get(str(repo), {}).get("status") == "completed":
                 log(f"SKIP {repo}: already completed", cfg)
                 continue
