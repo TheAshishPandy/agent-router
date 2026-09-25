@@ -275,6 +275,7 @@ async def _call_free_provider(provider: str, payload: dict, req_id: str = "") ->
     body = _build_openai_request(payload, provider, stream=False)
     headers = _provider_headers(provider)
 
+    _routing_event(req_id, provider, body["model"], "attempt")
     logger.info(f"FREE_PROVIDER_REQUEST provider={provider} model={body['model']} req_id={req_id}")
     resp = await client.post(f"{target}/chat/completions", json=body, headers=headers)
     if resp.status_code >= 400:
@@ -393,10 +394,12 @@ async def cascade_request(payload: dict, req_id: str = "") -> Optional[JSONRespo
         try:
             logger.info(f"CASCADE_ATTEMPT provider={provider} req_id={req_id}")
             result = await _call_free_provider(provider, payload, req_id=req_id)
+            _routing_event(req_id, provider, _PROVIDER_MODELS[provider], "success")
             logger.info(f"CASCADE_SUCCESS provider={provider} req_id={req_id}")
             return JSONResponse(content=result, headers={"X-Cascade": provider})
         except Exception as exc:
             err = f"{provider}: {type(exc).__name__}: {str(exc)[:300]}"
+            _routing_event(req_id, provider, _PROVIDER_MODELS[provider], "failed", err)
             errors.append(err)
             logger.warning(f"CASCADE_FAILED {err} req_id={req_id}")
     logger.error(f"CASCADE_EXHAUSTED req_id={req_id} errors={errors}")
@@ -412,8 +415,11 @@ async def cascade_stream(payload: dict, req_id: str = "") -> Optional[StreamingR
             continue
         try:
             logger.info(f"CASCADE_STREAM_ATTEMPT provider={provider} req_id={req_id}")
-            return await _stream_free_provider(provider, payload, req_id=req_id)
+            resp = await _stream_free_provider(provider, payload, req_id=req_id)
+            _routing_event(req_id, provider, _PROVIDER_MODELS[provider], "success")
+            return resp
         except Exception as exc:
+            _routing_event(req_id, provider, _PROVIDER_MODELS[provider], "failed", str(exc))
             logger.warning(f"CASCADE_STREAM_FAILED {provider}: {type(exc).__name__}: {exc}")
             continue
     return None
