@@ -43,3 +43,6 @@ Thumbs.db
 .env.*
 !.env.example
 .env
+
+# Autonomous orchestrator runtime state and logs
+.orchestrator/
