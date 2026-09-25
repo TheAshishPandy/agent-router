@@ -65,3 +65,14 @@ Push is disabled by default. After validation, set auto_push to true. The target
 ## Important behavior
 
 The orchestrator does not use the Antigravity desktop GUI. It calls the supported agy CLI directly from each repository working directory.
+
+
+## Safely test one repository first
+
+Use the single-repository mode before enabling workspace-wide autonomous processing:
+
+python -m orchestrator.manager --once --repo C:\Ashish\POC\agent-router
+
+This still creates/reuses agent/auto/agent-router, invokes the real agy CLI, streams progress, runs the completion gate, and commits only after verification.
+
+After validating the workflow, omit --repo to process all repositories discovered below the workspace.
