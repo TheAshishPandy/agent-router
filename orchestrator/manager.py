@@ -107,13 +107,15 @@ def invoke_agent(repo: Path, cfg: OrchestratorConfig, feedback: str = "", attemp
     command = [
         agy,
         "--model", cfg.agy_model,
+    ]
+    if cfg.agy_effort:
+        command.extend(["--effort", cfg.agy_effort])
+    command.extend([
         "--mode", "accept-edits",
         "--output-format", "stream-json",
         "--print-timeout", cfg.agy_print_timeout,
         "-p", task,
-    ]
-    if cfg.agy_effort:
-        command[2:2] = ["--effort", cfg.agy_effort]
+    ])
 
     log(f"START {repo.name}: Antigravity attempt {attempt}/{cfg.max_fix_attempts + 1}", cfg)
     log(f"AGY log: {log_path}", cfg)
