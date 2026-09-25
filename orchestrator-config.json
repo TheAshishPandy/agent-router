@@ -1,0 +1,10 @@
+{
+  "workspace": "C:\\Ashish\\POC",
+  "state_file": "orchestrator-state.json",
+  "log_dir": "logs\\orchestrator",
+  "max_fix_attempts": 5,
+  "auto_commit": true,
+  "auto_push": false,
+  "branch_prefix": "agent/auto",
+  "stop_on_blocked": false
+}
