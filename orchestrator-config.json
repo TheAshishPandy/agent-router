@@ -1,7 +1,7 @@
 {
   "workspace": "C:\\Ashish\\POC",
-  "state_file": "orchestrator-state.json",
-  "log_dir": "logs\\orchestrator",
+  "state_file": ".orchestrator/orchestrator-state.json",
+  "log_dir": ".orchestrator/logs",
   "max_fix_attempts": 5,
   "auto_commit": true,
   "auto_push": false,
@@ -11,5 +11,9 @@
   "agy_model": "gemini-3.8-flash-medium",
   "agy_effort": "",
   "agy_print_timeout": "10m",
-  "agy_hard_timeout_seconds": 900
+  "agy_hard_timeout_seconds": 900,
+  "agent_router_url": "http://127.0.0.1:8001/api",
+  "agent_router_model": "claude-sonnet-4-6",
+  "agent_router_max_turns": 30,
+  "agent_router_timeout_seconds": 300
 }
