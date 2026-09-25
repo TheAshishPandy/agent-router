@@ -21,6 +21,7 @@ def run(repo: Path, command: list[str], timeout: int = 1800):
 
 def detect_checks(repo: Path):
     checks = []
+
     if list(repo.glob("*.sln")) or list(repo.glob("*.csproj")):
         checks += [
             ("dotnet-build", ["dotnet", "build", "--no-restore"]),
@@ -32,6 +33,8 @@ def detect_checks(repo: Path):
         or (repo / "tests").is_dir()
     ):
         checks.append(("pytest", ["python", "-m", "pytest"]))
+    elif list(repo.glob("*.py")) or (repo / "requirements.txt").exists():
+        checks.append(("python-compile", ["python", "-m", "compileall", "-q", "."]))
     elif (repo / "package.json").exists():
         try:
             scripts = json.loads(
@@ -43,6 +46,7 @@ def detect_checks(repo: Path):
                 checks.append(("npm-test", ["npm", "test", "--", "--runInBand"]))
         except Exception:
             pass
+
     return checks
 
 
