@@ -23,6 +23,10 @@ def branch(repo: Path) -> str:
     return run_git(repo, "branch", "--show-current")
 
 
+def branch_exists(repo: Path, name: str) -> bool:
+    return bool(run_git(repo, "branch", "--list", name).strip())
+
+
 def ensure_work_branch(repo: Path, prefix: str) -> str:
     current = branch(repo)
     name = f"{prefix}/{repo.name}".replace(" ", "-")
@@ -36,8 +40,23 @@ def ensure_work_branch(repo: Path, prefix: str) -> str:
             "working tree is not clean. Commit or stash existing changes first."
         )
 
-    if run_git(repo, "branch", "--list", name).strip():
+    if branch_exists(repo, name):
         run_git(repo, "switch", name)
+        return name
+
+    base = ""
+    if branch_exists(repo, "main"):
+        base = "main"
+    elif branch_exists(repo, "master"):
+        base = "master"
+    elif current:
+        base = current
+
+    if base and current != base:
+        run_git(repo, "switch", base)
+
+    if base:
+        run_git(repo, "switch", "-c", name, base)
     else:
         run_git(repo, "switch", "-c", name)
 
