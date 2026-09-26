@@ -28,9 +28,12 @@ class ProjectPlan:
         if not path.exists():
             raise FileNotFoundError(f"Project plan not found: {path}")
         raw = path.read_text(encoding="utf-8")
-        project = _value(raw, r"^-s*\*\*Project:\*\*\s*(.+)$") or path.parent.name
-        active_id = _value(raw, r"^-s*\*\*Feature ID:\*\*\s*([A-Z]+-\d+)")
-        active_status = _value(raw, r"^-s*\*\*Status:\*\*\s*(TODO|IN_PROGRESS|BLOCKED|DONE|SKIPPED)")
+        project = _value(raw, r"^\s*-?\s*\*\*Project:\*\*\s*(.+)$") or path.parent.name
+        active_id = _value(raw, r"^\s*-?\s*\*\*Feature ID:\*\*\s*([A-Z]+-\d+)")
+        active_status = _value(
+            raw,
+            r"^\s*-?\s*\*\*Status:\*\*\s*(TODO|IN_PROGRESS|BLOCKED|DONE|SKIPPED)",
+        )
         features = tuple(_parse_features(raw))
         return cls(path, project, active_id, active_status, features, raw)
 
@@ -77,8 +80,14 @@ def _parse_features(text: str) -> list[ProjectFeature]:
     for i, match in enumerate(matches):
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         section = text[match.start():end].strip()
-        status = _value(section, r"^-s*\*\*Status:\*\*\s*(TODO|IN_PROGRESS|BLOCKED|DONE|SKIPPED)") or "TODO"
-        dep_value = _value(section, r"^-s*\*\*Dependencies:\*\*\s*(.+)$") or ""
+        status = _value(
+            section,
+            r"^\s*-?\s*\*\*Status:\*\*\s*(TODO|IN_PROGRESS|BLOCKED|DONE|SKIPPED)",
+        ) or "TODO"
+        dep_value = _value(
+            section,
+            r"^\s*-?\s*\*\*Dependencies:\*\*\s*(.+)$",
+        ) or ""
         dependencies = tuple(re.findall(r"F-\d+", dep_value))
         features.append(ProjectFeature(match.group(1), match.group(2).strip(), status, dependencies, section))
     return features
