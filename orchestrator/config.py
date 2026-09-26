@@ -25,6 +25,7 @@ class OrchestratorConfig:
     agent_router_model: str = "claude-sonnet-4-6"
     agent_router_max_turns: int = 30
     agent_router_timeout_seconds: int = 300
+    project_plan_file: str = "AUTONOMOUS_PROJECT_PLAN.md"
 
     @classmethod
     def from_file(cls, path: str | Path) -> "OrchestratorConfig":
@@ -80,4 +81,5 @@ class OrchestratorConfig:
             ),
             agent_router_max_turns=int(data.get("agent_router_max_turns", 30)),
             agent_router_timeout_seconds=int(data.get("agent_router_timeout_seconds", 300)),
+            project_plan_file=str(data.get("project_plan_file", os.environ.get("PROJECT_PLAN_FILE", "AUTONOMOUS_PROJECT_PLAN.md"))),
         )
