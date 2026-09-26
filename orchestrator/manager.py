@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import json
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +20,10 @@ def log(msg: str, cfg: OrchestratorConfig) -> None:
     print(line, flush=True)
     with (cfg.log_dir / "orchestrator.log").open("a", encoding="utf-8") as f:
         f.write(line + "\n")
+
+
+def project_complete(plan: ProjectPlan) -> bool:
+    return bool(plan.features) and all(f.status in {"DONE", "SKIPPED"} for f in plan.features)
 
 
 def invoke_agent(repo: Path, cfg: OrchestratorConfig, plan: ProjectPlan, feature_id: str, feedback: str = "", attempt: int = 1) -> dict:
@@ -84,7 +87,7 @@ def process_repo(repo: Path, cfg: OrchestratorConfig, state: dict) -> bool:
         plan = ProjectPlan.load(repo / cfg.project_plan_file)
         feature = plan.next_feature()
         if feature is None:
-            entry["status"] = "complete" if all(f.status in {"DONE", "SKIPPED"} for f in plan.features) else "waiting"
+            entry["status"] = "complete" if project_complete(plan) else "waiting"
             entry["plan"] = str(plan.path)
             save(cfg.state_file, state)
             log(f"SKIP {repo}: no eligible planned feature (status={entry['status']})", cfg)
@@ -184,9 +187,24 @@ def main() -> int:
         log(f"Discovered {len(current_repositories)} repositories under {cfg.workspace}", cfg)
 
         for repo in current_repositories:
-            if state.get("repositories", {}).get(str(repo), {}).get("status") == "completed":
-                log(f"SKIP {repo}: already completed", cfg)
-                continue
+            entry = state.get("repositories", {}).get(str(repo), {})
+            if entry.get("status") == "completed":
+                plan_path = repo / cfg.project_plan_file
+                if plan_path.exists():
+                    current_plan = ProjectPlan.load(plan_path)
+                    if project_complete(current_plan):
+                        log(f"SKIP {repo}: project plan is complete", cfg)
+                        continue
+                    log(
+                        f"RESUME {repo}: persisted completed state is stale; "
+                        f"plan has unfinished feature {current_plan.next_feature().feature_id if current_plan.next_feature() else 'NONE'}",
+                        cfg,
+                    )
+                    entry["status"] = "working"
+                    entry.pop("error", None)
+                    save(cfg.state_file, state)
+                else:
+                    log(f"RESUME {repo}: project plan is missing; process_repo will report the error", cfg)
             progress = True
             if not process_repo(repo, cfg, state) and cfg.stop_on_blocked:
                 return 2
