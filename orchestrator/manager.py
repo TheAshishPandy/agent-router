@@ -10,6 +10,7 @@ from .agent_router_client import AgentRouterError, run_agent_router
 from .completion_gate import verify
 from .config import OrchestratorConfig
 from .git_manager import GitError, commit, ensure_work_branch, push
+from .project_plan import ProjectPlan
 from .repo_discovery import discover_repositories
 from .state_manager import load, save
 
@@ -22,16 +23,16 @@ def log(msg: str, cfg: OrchestratorConfig) -> None:
         f.write(line + "\n")
 
 
-def invoke_agent(repo: Path, cfg: OrchestratorConfig, feedback: str = "", attempt: int = 1) -> dict:
+def invoke_agent(repo: Path, cfg: OrchestratorConfig, plan: ProjectPlan, feature_id: str, feedback: str = "", attempt: int = 1) -> dict:
+    feature = next((f for f in plan.features if f.feature_id == feature_id), None)
+    if feature is None:
+        raise RuntimeError(f"Feature {feature_id} is not present in {plan.path}")
     task = (
-        f"Work autonomously in the repository {repo}. "
-        "Inspect the repository structure, documentation, configuration, issues/TODOs and existing tests. "
-        "Identify the highest-priority unfinished engineering work and complete it. "
-        "Use the available repository tools to inspect files, implement changes, run builds/tests and fix failures. "
-        "For web/UI work, verify the result when possible. "
-        "Do not expose secrets, modify unrelated repositories, force-push, or use destructive commands. "
-        "Do not declare completion until the requested work is implemented and verified. "
-        f"This is autonomous attempt {attempt}. "
+        plan.task_context(feature)
+        + f"\nREPOSITORY: {repo}\nAUTONOMOUS ATTEMPT: {attempt}\n"
+        + "Use the available repository tools to inspect relevant files, implement the feature, run its acceptance checks, and fix failures.\n"
+        + "Do not expose secrets, modify unrelated repositories, force-push, or use destructive commands.\n"
+        + "Do not declare completion until the feature is implemented, verified, and its plan status is updated to DONE.\n"
     )
     if feedback:
         task += "\n\nPrevious verification feedback that must be fixed:\n" + feedback
@@ -80,6 +81,19 @@ def process_repo(repo: Path, cfg: OrchestratorConfig, state: dict) -> bool:
     entry["status"] = "working"
 
     try:
+        plan = ProjectPlan.load(repo / cfg.project_plan_file)
+        feature = plan.next_feature()
+        if feature is None:
+            entry["status"] = "complete" if all(f.status in {"DONE", "SKIPPED"} for f in plan.features) else "waiting"
+            entry["plan"] = str(plan.path)
+            save(cfg.state_file, state)
+            log(f"SKIP {repo}: no eligible planned feature (status={entry['status']})", cfg)
+            return entry["status"] == "complete"
+        entry["plan"] = str(plan.path)
+        entry["feature_id"] = feature.feature_id
+        entry["feature_status"] = feature.status
+        save(cfg.state_file, state)
+
         branch_name = ensure_work_branch(repo, cfg.branch_prefix)
         entry["branch"] = branch_name
         save(cfg.state_file, state)
@@ -87,16 +101,19 @@ def process_repo(repo: Path, cfg: OrchestratorConfig, state: dict) -> bool:
         feedback = ""
         total_attempts = cfg.max_fix_attempts + 1
         for attempt in range(1, total_attempts + 1):
-            agent = invoke_agent(repo, cfg, feedback, attempt)
+            agent = invoke_agent(repo, cfg, plan, feature.feature_id, feedback, attempt)
             entry["last_agent"] = agent
             entry["attempts"] = attempt
             save(cfg.state_file, state)
 
             verification = verify(repo)
             entry["last_verification"] = verification
+            current_plan = ProjectPlan.load(repo / cfg.project_plan_file)
+            current_feature = next((f for f in current_plan.features if f.feature_id == feature.feature_id), None)
+            entry["feature_status_after_agent"] = current_feature.status if current_feature else "MISSING"
             save(cfg.state_file, state)
 
-            if agent["success"] and verification["passed"]:
+            if agent["success"] and verification["passed"] and current_feature and current_feature.status == "DONE":
                 if cfg.auto_commit:
                     entry["commit"] = commit(repo, f"Complete autonomous work for {repo.name}")
                 if cfg.auto_push:
@@ -114,7 +131,7 @@ def process_repo(repo: Path, cfg: OrchestratorConfig, state: dict) -> bool:
                 if not check["ok"]
             ]
             feedback = (
-                "The previous autonomous attempt did not pass the completion gate. "
+                "The previous autonomous attempt did not pass the completion gate or the planned feature was not marked DONE. "
                 "Inspect the current working tree and fix the problem; do not discard valid work.\n"
             )
             if failures:
@@ -123,8 +140,8 @@ def process_repo(repo: Path, cfg: OrchestratorConfig, state: dict) -> bool:
                 feedback += f"\n{verification.get('reason', '')}"
             if not agent["success"]:
                 feedback += (
-                    f"\nAntigravity status={agent['status']} exit={agent['exit_code']}. "
-                    f"Review the Antigravity log at {agent['log_path']}."
+                    f"\nAgent Router status={agent['status']} exit={agent['exit_code']}. "
+                    f"Review the Agent Router log at {agent['log_path']}."
                 )
 
             if attempt < total_attempts:
