@@ -15,5 +15,6 @@
   "agent_router_url": "http://127.0.0.1:8001/api",
   "agent_router_model": "claude-sonnet-4-6",
   "agent_router_max_turns": 30,
-  "agent_router_timeout_seconds": 300
+  "agent_router_timeout_seconds": 300,
+  "project_plan_file": "AUTONOMOUS_PROJECT_PLAN.md"
 }
